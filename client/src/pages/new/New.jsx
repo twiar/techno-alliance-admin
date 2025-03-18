@@ -1,28 +1,23 @@
-import "../new/new.scss";
+import "./new.scss";
 import "../../components/datatable/datatable.scss";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
 import DriveFolderUploadOutlinedIcon from "@mui/icons-material/DriveFolderUploadOutlined";
 import { useEffect, useState } from "react";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
-import { db, storage } from "../../firebase";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { useNavigate, useParams } from "react-router-dom";
-import { productInputs } from "../../formSource";
+import { productInputs } from "../../utils/formSource";
 import { useForm, useFieldArray } from "react-hook-form";
-import { transliterate as slugify } from 'transliteration';
+import { transliterate as slugify } from "transliteration";
 
 const New = ({ title }) => {
   const [singleData, setSingleData] = useState({});
   const [files, setFiles] = useState([]);
   const [per, setPerc] = useState(null);
-
   const navigate = useNavigate();
   const outerParams = useParams();
 
-  const generateSlug = (text) => {
-    return slugify(text, { replace: { ' ': '-', '_': '-' } }).toLowerCase();
-  };
+  const generateSlug = (text) =>
+    slugify(text, { replace: { " ": "-", "_": "-" } }).toLowerCase();
 
   const { register, control, handleSubmit } = useForm({
     defaultValues: {
@@ -35,59 +30,30 @@ const New = ({ title }) => {
     name: "characteristics"
   });
 
-  useEffect(() => {
-    const images = [];
-    const uploadFiles = async () => files.map((file, index) => {
-      const name = new Date().getTime() + file.name;
-
-      const storageRef = ref(storage, name);
-      const uploadTask = uploadBytesResumable(storageRef, file);
-
-      uploadTask.on('state_changed', 
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          setPerc(progress);
-          switch (snapshot.state) {
-            case 'paused':
-              console.log('Upload is paused');
-              break;
-            case 'running':
-              console.log('Upload is running');
-              break;
-            default:
-              break;
-          }
-        }, 
-        (error) => {
-          console.log(error);
-        }, 
-        () => {
-          getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-            images.push(downloadURL);
-            if (index === files.length - 1) setSingleData({ ...singleData, images });
-          });
-        }
-      );
-    });
-    files.length && uploadFiles();
-  }, [files]);
-
   const handleInput = (e) => {
     const id = e.target.id;
     const value = e.target.value;
-
     setSingleData({ ...singleData, [id]: value });
-  }
+  };
 
   const onSubmit = async (data) => {
     try {
-      await addDoc(collection(db, outerParams?.categoryId ? "products" : outerParams?.sectionId ? "categories" : "sections"), {
-        parentId: outerParams?.categoryId || outerParams?.sectionId || null,
-        ...singleData,
-        ...data,
-        path: generateSlug(singleData.title),
-        timestamp: serverTimestamp()
-      });
+      const formData = new FormData();
+      files.forEach((file, index) => formData.append(`images[${index}]`, file));
+      Object.keys(singleData).forEach((key) =>
+        formData.append(key, singleData[key])
+      );
+      Object.keys(data).forEach((key) => formData.append(key, data[key]));
+
+      const response = await fetch(
+        `http://localhost:5000/api/${outerParams?.categoryId ? "products" : outerParams?.sectionId ? "categories" : "sections"}`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      if (!response.ok) throw new Error("Failed to create item");
       navigate(-1);
     } catch (err) {
       console.log(err);

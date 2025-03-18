@@ -1,10 +1,9 @@
-import Home from "./pages/home/Home";
 import Login from "./pages/login/Login";
 import List from "./pages/list/List";
 import Single from "./pages/single/Single";
 import New from "./pages/new/New";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { categoryInputs, productInputs, sectionInputs, userInputs } from "./formSource";
+import { categoryInputs, productInputs, sectionInputs, userInputs } from "./utils/formSource";
 import "./style/dark.scss";
 import { useContext } from "react";
 import { DarkModeContext } from "./context/darkModeContext";
