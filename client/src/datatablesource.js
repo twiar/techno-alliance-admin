@@ -7,7 +7,7 @@ export const userColumns = [
     renderCell: (params) => {
       return (
         <div className="cellWithImg">
-          <img className="cellImg" src={params.row.images ? params.row.images[0] : ''} alt="avatar" />
+          <img className="cellImg" src={params.row.images ? `${process.env.REACT_APP_API_URL}${params.row.images[0]}` : ''} alt="avatar" />
         </div>
       );
     },

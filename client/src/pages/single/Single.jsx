@@ -9,6 +9,7 @@ import { productInputs } from "../../utils/formSource";
 import { useForm, useFieldArray } from "react-hook-form";
 import { transliterate as slugify } from "transliteration";
 import { Editor } from "@tinymce/tinymce-react";
+import axios from "axios";
 
 const Single = () => {
   const [singleData, setSingleData] = useState({});
@@ -17,6 +18,8 @@ const Single = () => {
   const [per, setPerc] = useState(null);
   const navigate = useNavigate();
   const outerParams = useParams();
+
+  const BASE_URL = process.env.REACT_APP_API_URL;
 
   const generateSlug = (text) =>
     slugify(text, { replace: { " ": "-", "_": "-" } }).toLowerCase();
@@ -34,6 +37,63 @@ const Single = () => {
 
   const formattedValue = (value) => value?.replace(/\s/g, '&nbsp;');
 
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await axios.get(
+          `${BASE_URL}/api/products/${outerParams.productId}`
+        );
+        const product = response.data;
+  
+        setSingleData(product);
+        if (product.characteristics) {
+          product.characteristics.forEach((charact) => {
+            append({ name: charact.name, value: charact.value });
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching product:", err);
+      }
+    };
+  
+    fetchData();
+  }, [outerParams.productId]);
+
+  useEffect(() => {
+
+    const uploadFiles = async () => {
+      if (!files.length) return;
+  
+      try {
+        const formData = new FormData();
+        files.forEach((file) => formData.append("images", file));
+  
+        const response = await axios.post(
+          `${BASE_URL}/api/upload`,
+          formData,
+          {
+            headers: { "Content-Type": "multipart/form-data" },
+            onUploadProgress: (progressEvent) => {
+              const progress =
+                (progressEvent.loaded / progressEvent.total) * 100;
+              setPerc(progress);
+            },
+          }
+        );
+  
+        const uploadedImages = response.data.images; // Получаем ссылки на загруженные изображения
+        setSingleData((prevData) => ({
+          ...prevData,
+          images: [...(prevData.images || []), ...uploadedImages],
+        }));
+      } catch (err) {
+        console.error("Error uploading files:", err);
+      }
+    };
+  
+    files.length && uploadFiles();
+  }, [files]);
+
   const handleInput = (e) => {
     const id = e.target.id;
     const value = e.target.value;
@@ -46,26 +106,25 @@ const Single = () => {
 
   const onSubmit = async (data) => {
     try {
-      const formData = new FormData();
-      files.forEach((file, index) => formData.append(`images[${index}]`, file));
-      Object.keys(singleData).forEach((key) =>
-        formData.append(key, singleData[key])
-      );
-      Object.keys(data).forEach((key) => formData.append(key, data[key]));
-      formData.append("description", editorContent);
+        const formData = new FormData();
+        files.forEach((file) => formData.append("images", file));
+        Object.keys(singleData).forEach((key) =>
+            formData.append(key, singleData[key])
+        );
+        Object.keys(data).forEach((key) => formData.append(key, data[key]));
+        formData.append("description", editorContent);
 
-      const response = await fetch(
-        `http://localhost:5000/api/products/${outerParams.productId}`,
-        {
-          method: "PUT",
-          body: formData,
-        }
-      );
+        const response = await fetch(
+            `${BASE_URL}/api/products/${outerParams.productId}`,
+            {
+                method: "PUT",
+                body: formData,
+            }
+        );
 
-      if (!response.ok) throw new Error("Failed to update item");
-      navigate(-1);
+        navigate(-1);
     } catch (err) {
-      console.log(err);
+        console.error("Error updating product:", err);
     }
   };
 
@@ -83,16 +142,10 @@ const Single = () => {
           <div className="left">
             {
               singleData.images?.length
-              ? singleData.images.map((image) => (
-                <img
-                  src={image}
-                  alt=""
-                />
-              ))
-              : (<img
-                  src="https://icon-library.com/images/no-image-icon/no-image-icon-0.jpg"
-                  alt=""
-                />)
+                ? singleData.images.map((image) => (
+                    <img src={`${BASE_URL}${image}`} alt="" />
+                  ))
+                : (<img src="https://icon-library.com/images/no-image-icon/no-image-icon-0.jpg" alt="" />)
             }
           </div>
           <div className="right">

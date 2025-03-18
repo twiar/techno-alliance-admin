@@ -8,6 +8,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { productInputs } from "../../utils/formSource";
 import { useForm, useFieldArray } from "react-hook-form";
 import { transliterate as slugify } from "transliteration";
+import axios from "axios";
 
 const New = ({ title }) => {
   const [singleData, setSingleData] = useState({});
@@ -15,6 +16,8 @@ const New = ({ title }) => {
   const [per, setPerc] = useState(null);
   const navigate = useNavigate();
   const outerParams = useParams();
+
+  const BASE_URL = process.env.REACT_APP_API_URL;
 
   const generateSlug = (text) =>
     slugify(text, { replace: { " ": "-", "_": "-" } }).toLowerCase();
@@ -30,6 +33,40 @@ const New = ({ title }) => {
     name: "characteristics"
   });
 
+  useEffect(() => {
+    const uploadFiles = async () => {
+      if (!files.length) return;
+  
+      try {
+        const formData = new FormData();
+        files.forEach((file) => formData.append("images", file));
+  
+        const response = await axios.post(
+          `${BASE_URL}/api/upload`,
+          formData,
+          {
+            headers: { "Content-Type": "multipart/form-data" },
+            onUploadProgress: (progressEvent) => {
+              const progress =
+                (progressEvent.loaded / progressEvent.total) * 100;
+              setPerc(progress);
+            },
+          }
+        );
+  
+        const uploadedImages = response.data.images; // Получаем ссылки на загруженные изображения
+        setSingleData((prevData) => ({
+          ...prevData,
+          images: [...(prevData.images || []), ...uploadedImages],
+        }));
+      } catch (err) {
+        console.error("Error uploading files:", err);
+      }
+    };
+  
+    files.length && uploadFiles();
+  }, [files]);
+
   const handleInput = (e) => {
     const id = e.target.id;
     const value = e.target.value;
@@ -38,25 +75,27 @@ const New = ({ title }) => {
 
   const onSubmit = async (data) => {
     try {
-      const formData = new FormData();
-      files.forEach((file, index) => formData.append(`images[${index}]`, file));
-      Object.keys(singleData).forEach((key) =>
-        formData.append(key, singleData[key])
-      );
-      Object.keys(data).forEach((key) => formData.append(key, data[key]));
+        const formData = new FormData();
+        files.forEach((file, index) => formData.append("images", file));
+        Object.keys(singleData).forEach((key) =>
+            formData.append(key, singleData[key])
+        );
+        Object.keys(data).forEach((key) => formData.append(key, data[key]));
 
-      const response = await fetch(
-        `http://localhost:5000/api/${outerParams?.categoryId ? "products" : outerParams?.sectionId ? "categories" : "sections"}`,
-        {
-          method: "POST",
-          body: formData,
+        const url = `${BASE_URL}/api/${outerParams?.categoryId ? "products" : outerParams?.sectionId ? "categories" : "sections"}`;
+        if (outerParams?.categoryId) {
+          formData.append("parentId", outerParams.categoryId);
+        } else if (outerParams?.sectionId) {
+          formData.append("parentId", outerParams.sectionId);
         }
-      );
 
-      if (!response.ok) throw new Error("Failed to create item");
-      navigate(-1);
+        const response = await axios.post(url, formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+        });
+
+        navigate(-1);
     } catch (err) {
-      console.log(err);
+        console.error("Error creating item:", err);
     }
   };
 
@@ -74,16 +113,10 @@ const New = ({ title }) => {
           <div className="left">
             {
               singleData.images?.length
-              ? singleData.images.map((image) => (
-                <img
-                  src={image}
-                  alt=""
-                />
-              ))
-              : (<img
-                  src="https://icon-library.com/images/no-image-icon/no-image-icon-0.jpg"
-                  alt=""
-                />)
+                ? singleData.images.map((image) => (
+                    <img src={`${BASE_URL}${image}`} alt="" />
+                  ))
+                : (<img src="https://icon-library.com/images/no-image-icon/no-image-icon-0.jpg" alt="" />)
             }
           </div>
           <div className="right">

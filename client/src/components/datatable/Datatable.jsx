@@ -4,7 +4,7 @@ import { DataGrid, GridRow, GridCell } from "@mui/x-data-grid";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import DriveFolderUploadOutlinedIcon from "@mui/icons-material/DriveFolderUploadOutlined";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import axios from "axios"; // Используем Axios для запросов к backend
+import axios from "axios";
 import { productInputs } from "../../utils/formSource";
 import { userColumns } from "../../datatablesource";
 import { transliterate as slugify } from "transliteration";
@@ -18,6 +18,8 @@ const Datatable = ({ inputs, type }) => {
   const [per, setPerc] = useState(null);
   const navigate = useNavigate();
   const outerParams = useParams();
+
+  const BASE_URL = process.env.REACT_APP_API_URL;
 
   const generateSlug = (text) =>
     slugify(text, { replace: { " ": "-", "_": "-" } }).toLowerCase();
@@ -74,10 +76,9 @@ const Datatable = ({ inputs, type }) => {
     newRows.splice(destination.index, 0, removed);
 
     try {
-      // Обновляем порядок на сервере
       await Promise.all(
         newRows.map(async (item, index) => {
-          await axios.put(`http://localhost:5000/api/${type}/${item.id}`, {
+          await axios.put(`${BASE_URL}/api/${type}/${item.id}`, {
             order: index + 1,
           });
         })
@@ -90,33 +91,30 @@ const Datatable = ({ inputs, type }) => {
 
   useEffect(() => {
     const fetchData = async () => {
-      try {
-        let url = `http://localhost:5000/api/${type}`;
-        if (type !== "sections") {
-          url += `?parentId=${type === "categories" ? outerParams.sectionId : outerParams.categoryId}`;
+        try {
+            let url = `${BASE_URL}/api/${type}`;
+            if (type !== "sections") {
+                url += `?parentId=${type === "categories" ? outerParams.sectionId : outerParams.categoryId}`;
+            }
+
+            const response = await axios.get(url);
+            const list = response.data;
+
+            if (list[0]?.order) {
+                list.sort((a, b) => (a.order < b.order ? -1 : 1));
+            }
+
+            setData(list);
+
+            if (type === "categories" || type === "products") {
+                const parentResponse = await axios.get(
+                    `${BASE_URL}/api/${type === "categories" ? "sections" : "categories"}/${type === "categories" ? outerParams.sectionId : outerParams.categoryId}`
+                );
+                setSingleData(parentResponse.data);
+            }
+        } catch (err) {
+            console.error("Error fetching data:", err);
         }
-
-        const response = await axios.get(url);
-        const list = response.data;
-
-        if (list[0]?.order) {
-          list.sort((a, b) => (a.order < b.order ? -1 : 1));
-        }
-
-        setData(list);
-
-        // Получаем данные родительского элемента
-        if (type === "categories" || type === "products") {
-          const parentResponse = await axios.get(
-            `http://localhost:5000/api/${
-              type === "categories" ? "sections" : "categories"
-            }/${type === "categories" ? outerParams.sectionId : outerParams.categoryId}`
-          );
-          setSingleData(parentResponse.data);
-        }
-      } catch (err) {
-        console.error("Error fetching data:", err);
-      }
     };
 
     fetchData();
@@ -124,7 +122,7 @@ const Datatable = ({ inputs, type }) => {
 
   const handleDelete = async (id) => {
     try {
-      await axios.delete(`http://localhost:5000/api/${type}/${id}`);
+      await axios.delete(`${BASE_URL}/api/${type}/${id}`);
       setData(data.filter((item) => item.id !== id));
     } catch (err) {
       console.error("Error deleting item:", err);
@@ -203,7 +201,7 @@ const Datatable = ({ inputs, type }) => {
       };
 
       await axios.put(
-        `http://localhost:5000/api/${
+        `${BASE_URL}/api/${
           type === "categories" ? "sections" : "categories"
         }/${type === "categories" ? outerParams.sectionId : outerParams.categoryId}`,
         updatedData
@@ -222,9 +220,8 @@ const Datatable = ({ inputs, type }) => {
           <div className="datatableTitle">
             {singleData["title"]}
             <button
-              className="customBtn"
+              className="customBtn link"
               onClick={() => navigate(-1)}
-              className="link"
             >
               Назад
             </button>
@@ -233,16 +230,13 @@ const Datatable = ({ inputs, type }) => {
             <div className="newContainer">
               <div className="bottom">
                 <div className="left">
-                  {singleData.images?.length
-                    ? singleData.images.map((image) => (
-                        <img src={image} alt="" />
-                      ))
-                    : (
-                        <img
-                          src="https://icon-library.com/images/no-image-icon/no-image-icon-0.jpg"
-                          alt=""
-                        />
-                      )}
+                  {
+                    singleData.images?.length
+                      ? singleData.images.map((image) => (
+                          <img src={`${BASE_URL}${image}`} alt="" />
+                        ))
+                      : (<img src="https://icon-library.com/images/no-image-icon/no-image-icon-0.jpg" alt="" />)
+                  }
                 </div>
                 <div className="right">
                   <form onSubmit={handleUpdate}>
